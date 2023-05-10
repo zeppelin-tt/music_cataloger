@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:metadata_god/metadata_god.dart';
 import 'package:music_cataloger/main_page.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  MetadataGod.initialize();
   runApp(const MyApp());
 }
 

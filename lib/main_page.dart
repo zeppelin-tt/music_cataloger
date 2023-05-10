@@ -1,11 +1,9 @@
-import 'dart:io';
-
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_media_metadata/flutter_media_metadata.dart';
 import 'package:music_cataloger/palette.dart';
+import 'package:music_cataloger/progress_dispatcher.dart';
 import 'package:music_cataloger/text_styles.dart';
-import 'package:music_cataloger/utill.dart';
+import 'package:music_cataloger/util.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({Key? key}) : super(key: key);
@@ -15,10 +13,11 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
+  final progressDispatcher = ProgressDispatcher(initialValue: 0);
   String buttonFromText = 'Введите';
   String buttonToText = 'Введите';
   String buttonToCueSplit = 'Введите';
-  String metadata = '';
+  bool isLaunched = false;
 
   @override
   Widget build(BuildContext context) {
@@ -65,22 +64,46 @@ class _MainPageState extends State<MainPage> {
           SizedBox(
             height: 98,
             width: double.infinity,
-            child: TextButton(
-              onPressed: () {
-                foo(buttonFromText, buttonToText, buttonToCueSplit);
+            child: StreamBuilder<double>(
+              stream: progressDispatcher.stream,
+              initialData: progressDispatcher.value,
+              builder: (context, progress) {
+                return TextButton(
+                  onPressed: () async {
+                    setState(() => isLaunched = true);
+                    await runCataloger(buttonFromText, buttonToText, buttonToCueSplit, progressDispatcher);
+                    progressDispatcher.put(0);
+                    setState(() => isLaunched = false);
+                  },
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                  ),
+                  child: isLaunched
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 25),
+                          child: LinearProgressIndicator(
+                            minHeight: 40,
+                            value: progress.requireData,
+                            backgroundColor: Palette.disabledButtons,
+                            color: Palette.enabledButtons,
+                            semanticsLabel: 'Linear progress indicator',
+                          ),
+                        )
+                      : Text('Поехали!', style: TextStyles.mainText.copyWith(fontSize: 38)),
+                );
               },
-              style: TextButton.styleFrom(
-                backgroundColor: Colors.green,
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-              ),
-              child:  Text('Поехали!', style: TextStyles.mainText.copyWith(fontSize: 38)),
             ),
           ),
-          const SizedBox(height: 30),
-          Text(metadata, style: TextStyles.mainText, textAlign: TextAlign.center)
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    progressDispatcher.dispose();
+    super.dispose();
   }
 
   Future<String?> getDirPath() => getDirectoryPath(confirmButtonText: 'Choose directory');
