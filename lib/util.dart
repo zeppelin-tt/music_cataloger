@@ -6,33 +6,64 @@ import 'package:music_cataloger/progress_dispatcher.dart';
 
 Future<Metadata> getMetadata(String path) => MetadataGod.readMetadata(file: path);
 
-Future<void> runCataloger(String pathFrom, String pathTo, String toCueSplit, ProgressDispatcher progress) async {
-  final directories = await getAllDirectories(pathFrom);
+Future<void> runCataloger(
+  String pathFrom,
+  String pathTo,
+  String toCueSplit,
+  ProgressDispatcher progress,
+  bool deleteAfterCopy,
+) async {
+  final rootDirectory = Directory(pathFrom);
+  final directories = await rootDirectory.getAllPotentialDirectories;
   int counter = 1;
   for (final currentDirectory in directories) {
+    if (!await currentDirectory.exists()) {
+      continue;
+    }
     final files = await currentDirectory.files;
 
     final p = counter++ / directories.length;
     progress.put(p > 1 ? 1 : p);
 
     if (files.isEmpty) {
+      if (await currentDirectory.list().isEmpty) {
+        if (deleteAfterCopy && rootDirectory.path != currentDirectory.path) {
+          await currentDirectory.deleteRecursive();
+        }
+      }
       continue;
     }
     final filesWithAudio = files.where((e) => e.isAudio);
     final notAudioFiles = files.where((e) => !e.isAudio).toList();
     final cueFiles = files.where((e) => e.extension == 'cue').toList();
 
-    if (cueFiles.isNotEmpty && cueFiles.length == filesWithAudio.length) {
+    if (cueFiles.isNotEmpty && cueFiles.length >= filesWithAudio.length) {
       final toDir = '$toCueSplit\\${currentDirectory.uri.pathSegments.where((e) => e.isNotEmpty).last}';
       if (await Directory(toDir).exists()) {
+        if (deleteAfterCopy && rootDirectory.path != currentDirectory.path) {
+          await currentDirectory.deleteRecursive();
+        }
         continue;
       }
       await copyPath(currentDirectory.path, toDir);
+      if (deleteAfterCopy && rootDirectory.path != currentDirectory.path) {
+        await currentDirectory.deleteRecursive();
+      }
       continue;
     }
 
-    final audioFiles = await Future.wait(filesWithAudio.map((e) async {
-      return AudioFile(file: e, metadata: await e.metadata);
+    if (filesWithAudio.isEmpty) {
+      continue;
+    }
+
+    final audioFiles = await Future.wait(filesWithAudio.map((file) async {
+      Metadata metadata;
+      try {
+        metadata = await file.metadata;
+      } catch (e) {
+        metadata = Metadata(album: file.name, artist: 'Unknown');
+      }
+      return AudioFile(file: file, metadata: metadata);
     }).toList());
 
     final albums = <List<AudioFile>>[];
@@ -51,6 +82,16 @@ Future<void> runCataloger(String pathFrom, String pathTo, String toCueSplit, Pro
 
     for (final album in albums) {
       await copyTracksInAlbum(cueFiles, notAudioFiles, album, pathTo);
+    }
+
+    if (deleteAfterCopy && rootDirectory.path != currentDirectory.path) {
+      await currentDirectory.deleteRecursive();
+    }
+  }
+
+  if (deleteAfterCopy) {
+    for (final entity in await rootDirectory.list().toList()) {
+      await entity.delete(recursive: true);
     }
   }
 }
@@ -103,22 +144,31 @@ Future<String> createAlbumDir(String path, {firstRun = true}) async {
   }
 }
 
-Future<List<Directory>> getAllDirectories(String rootPath) async {
-  return (await Directory(rootPath)
-      .list(recursive: true)
-      .where((e) => e is Directory)
-      .map((e) => e as Directory)
-      .toList())
-    ..add(Directory(rootPath));
-}
-
 extension on String {
   String? get emptyToNull => isEmpty ? null : this;
-  String get clearDirPath => replaceAll(RegExp(r'[/\\*."\[\]:;|,?]'), '');
+
+  String get clearDirPath => replaceAll(RegExp(r'[/\\*."\[\]:;|,?><]'), '').trim();
 }
 
 extension on Directory {
   Future<List<File>> get files => list().where((e) => e is File).map((e) => e as File).toList();
+
+  Future<void> deleteRecursive() async {
+    try {
+      await delete(recursive: true);
+    } catch (e) {
+      print(e);
+    }
+  }
+
+  Future<List<Directory>> get getAllPotentialDirectories async {
+    final dirs = await list(recursive: true)
+        .where((e) => e is Directory)
+        .map((e) => e as Directory)
+        .where((e) => e.listSync().any((e) => e is Directory || (e is File && e.isAudio)))
+        .toList();
+    return dirs..add(this);
+  }
 }
 
 extension on File {
@@ -126,15 +176,9 @@ extension on File {
 
   String get name => uri.pathSegments.last.replaceFirst(r'\.[^\.]+$', '');
 
-  bool get isAudio => ['m4a', 'mp3', 'flac', 'ape'].contains(extension);
+  bool get isAudio => ['m4a', 'mp3', 'flac'].contains(extension);
 
-  Future<Metadata> get metadata {
-    try {
-      return MetadataGod.readMetadata(file: path);
-    } catch (e) {
-      return Future.value(Metadata(album: name, artist: 'Unknown'));
-    }
-  }
+  Future<Metadata> get metadata => MetadataGod.readMetadata(file: path);
 
   Future<String?> getCueValue(String key) async {
     try {

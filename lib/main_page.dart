@@ -1,5 +1,6 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:music_cataloger/check_box.dart';
 import 'package:music_cataloger/palette.dart';
 import 'package:music_cataloger/progress_dispatcher.dart';
 import 'package:music_cataloger/text_styles.dart';
@@ -18,6 +19,7 @@ class _MainPageState extends State<MainPage> {
   String buttonToText = 'Введите';
   String buttonToCueSplit = 'Введите';
   bool isLaunched = false;
+  bool deleteAfterCopy = false;
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +63,14 @@ class _MainPageState extends State<MainPage> {
             textError: '',
           ),
           const SizedBox(height: 30),
+          Row(
+            children: [
+              AppCheckbox(onChanged: (bool value) => deleteAfterCopy = value),
+              const SizedBox(width: 10),
+              Text('Delete after copy', style: TextStyles.accentText),
+            ],
+          ),
+          const SizedBox(height: 30),
           SizedBox(
             height: 98,
             width: double.infinity,
@@ -71,7 +81,13 @@ class _MainPageState extends State<MainPage> {
                 return TextButton(
                   onPressed: () async {
                     setState(() => isLaunched = true);
-                    await runCataloger(buttonFromText, buttonToText, buttonToCueSplit, progressDispatcher);
+                    await runCataloger(
+                      buttonFromText,
+                      buttonToText,
+                      buttonToCueSplit,
+                      progressDispatcher,
+                      deleteAfterCopy,
+                    );
                     progressDispatcher.put(0);
                     setState(() => isLaunched = false);
                   },
