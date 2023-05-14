@@ -37,7 +37,7 @@ Future<void> runCataloger(
     final notAudioFiles = files.where((e) => !e.isAudio).toList();
     final cueFiles = files.where((e) => e.extension == 'cue').toList();
 
-    if (cueFiles.isNotEmpty && cueFiles.length >= filesWithAudio.length) {
+    if (cueFiles.isNotEmpty && cueFiles.length >= filesWithAudio.length || files.any((e) => e.extension == 'ape')) {
       final toDir = '$toCueSplit\\${currentDirectory.uri.pathSegments.where((e) => e.isNotEmpty).last}';
       if (await Directory(toDir).exists()) {
         if (deleteAfterCopy && rootDirectory.path != currentDirectory.path) {
@@ -113,8 +113,8 @@ Future<void> copyTracksInAlbum(
           'Unknown')
       .trim();
   final albumName = (album.first.metadata.album?.emptyToNull ?? 'Unknown').trim();
-  final year = album.first.metadata.year ?? 1054;
-  final artistAlbumPathSegment = '${author.clearDirPath}\\$year - ${albumName.clearDirPath}';
+  final year = album.first.metadata.year;
+  final artistAlbumPathSegment = '${author.clearDirPath}\\${year == null ? '' : '$year - '}${albumName.clearDirPath}';
   final destinationAlbumPath = await createAlbumDir('$pathTo\\$artistAlbumPathSegment');
 
   for (final notAudioFile in notAudioFiles) {
@@ -130,15 +130,15 @@ Future<void> copyTracksInAlbum(
 
 Future<String> createAlbumDir(String path, {firstRun = true}) async {
   final newDir = Directory(path);
-  String clearPath = '';
+  String clearPath = path;
   if (!newDir.existsSync()) {
     return (await newDir.create(recursive: true)).path;
   } else {
     int number = 1;
     if (!firstRun) {
-      final suffix = RegExp(r'\d+$').allMatches(path).map((m) => m.group(0)).where((text) => text != null).first ?? '';
-      clearPath = path.replaceAll(RegExp(r'\d+$'), '');
-      number = (int.tryParse(suffix) ?? 100) + 1;
+      final suffix = RegExp(r' \d+$').allMatches(path).map((m) => m.group(0)).where((text) => text != null).first ?? '';
+      clearPath = path.replaceAll(RegExp(r' \d+$'), '');
+      number = (int.tryParse(suffix.trim()) ?? 100) + 1;
     }
     return await createAlbumDir('$clearPath $number', firstRun: false);
   }
