@@ -1,0 +1,28 @@
+name: music_cataloger
+description: sort and cut music.
+
+version: 1.0.0+2
+
+environment:
+  sdk: '>=2.19.6 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_fonts: ^6.2.1
+  file_selector: ^1.0.3
+  metadata_god: ^1.0.0
+  rxdart: ^0.28.0
+  collection: 1.19.0
+  io: ^1.0.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^5.0.0
+
+flutter:
+
+  uses-material-design: true
+
